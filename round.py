@@ -10,11 +10,12 @@ from card import Card
 from contract import Contract
 from spades_utils import *
 
+# Consider moving thi section to it's own accumulator module
+
 class Round:
-    def __init__(self, num, players, pins, game_header):
+    def __init__(self, num, players, game_header):
         self.num = num
         self.players = players
-        self.pins = pins
         self.game_state = game_header # Useful string to have on hand
         self.scores = [0, 0]
         self.bags = [0, 0]
@@ -22,6 +23,10 @@ class Round:
         self.contracts = [Contract(), Contract()]
         self.hands = {}
         self.spade_in_play = False # Answers: Has a spade been played yet this round?
+
+        self.card_win_count = [0 for id in range(52)]
+        # for id in range(52):
+        #     self.card_win_count[id] = 0
 
         # Run the round
         self.run()
@@ -124,84 +129,72 @@ class Round:
         # Print a row of dashes to underline header
         print(DIVIDER)
 
-    # Handle user pin entry before their turn (TODO: Add graceful quitting)
-    def pin_check(self, player, msg, wipe=True):
-        while (True):
-            pin = getpass.getpass(msg)
-            if (self.pins[player] != pin):
-                print("Incorrect PIN! Are you sure it's your turn? (If you're stuck, force kill the game with \"^\\\")")
-            else:
-                break
-        if (wipe):
-            wipe_screen()
+    # # Handle user pin entry before their turn (TODO: Add graceful quitting)
+    # def pin_check(self, player, msg, wipe=True):
+    #     while (True):
+    #         pin = getpass.getpass(msg)
+    #         if (self.pins[player] != pin):
+    #             print("Incorrect PIN! Are you sure it's your turn? (If you're stuck, force kill the game with \"^\\\")")
+    #         else:
+    #             break
+    #     if (wipe):
+    #         wipe_screen()
 
     # Force the user to enter a valid bet at the start of each round
-    def get_bet(self):
-        msg = "Enter the number of hands you expect to win (enter 0 to bid nil):"
-        while (True):
-            bid = handle_input(msg)
-            try:
-                bid = int(bid)
-                if ((bid < 0) or (bid > 13)):
-                    print("Your bid must fall in the range [0, 13]!")
-                else:
-                    return bid
-            except:
-                print("Your bid must be an integer!")
+    # def get_bet(self):
+    #     msg = "Enter the number of hands you expect to win (enter 0 to bid nil):"
+    #     while (True):
+    #         bid = handle_input(msg)
+    #         try:
+    #             bid = int(bid)
+    #             if ((bid < 0) or (bid > 13)):
+    #                 print("Your bid must fall in the range [0, 13]!")
+    #             else:
+    #                 return bid
+    #         except:
+    #             print("Your bid must be an integer!")
 
     # Handle the bidding stage of the round
     def bidding(self):
         for i, player in enumerate(self.players):
-            msg = (f"It is your turn, {player}! Once you are sure no one else (including your teammate) "
-                    "can see your screen, please enter your PIN:\n")
-            self.pin_check(player, msg) # Enforce password
-            self.print_header()
+            # msg = (f"It is your turn, {player.name}! \n")
+            # self.print_header()
 
-            # Handle blindness
-            blind_msg = ("Would you like to view your cards? Answering no means "
-                            "you will be bidding blind. (y/n)")
-            not_blind = handle_input(blind_msg, YORN)
+            # # Handle blindness
+            # blind_msg = ("Would you like to view your cards? Answering no means "
+            #                 "you will be bidding blind. (y/n)")
+            # not_blind = handle_input(blind_msg, YORN)
 
-            # Show cards unless blind
-            if (not_blind):
-                self.print_hand(self.hands[player])
-            else:
-                print("Yikes! Good luck bidding blind!")
+            # # Show cards unless blind
+            # if (not_blind):
+            #     self.print_hand(self.hands[player])
+            # else:
+            #     print("Yikes! Good luck bidding blind!")
 
             # Get bid
-            bid_result = self.get_bet()
+            #bid_result = self.get_bet()
+            not_blind = True
+            bid_result = player.getBid(self.hands[player])
 
             # Log the bid in the team's contract under the player's name
-            team = player[0]
-            number = int(player[1])
+            team = player.name[0]
+            number = int(player.name[1])
             if (team == "A"):
                 self.contracts[0].add_bid(number, bid_result, not not_blind)
             else:
                 self.contracts[1].add_bid(number, bid_result, not not_blind)
 
-            wipe_screen()
-
-            # Tell the user what to do next
-            if (i < len(self.players) - 1):
-                handle_input("Bid accepted! Please pass the computer to the next player! Press any key to continue....")
-            else:
-                self.print_header()
-                handle_input("All bids are made! Please ensure that all players see the header so they know what other bids they are up against!\n\n"
-                            "During the game, players should feel free to discuss and joke with each other, but at no time should they reveal their hand to anyone.\n\n"
-                            "When everyone is ready to start, press any key to begin play....", WIPE)
-
     # A "trick" is a round of play (4 cards). This handles the execution of these rounds
     def play_trick(self, ordering):
         table = []      # Cards on the table
         lead_suite = -1 # Winning suite in play
-        self.print_header()
-        self.print_table(table, ordering)
+        # self.print_header()
+        # self.print_table(table, ordering)
 
         # Each player plays one card in a trick....
         for i, player in enumerate(ordering):
-            msg = (f"It is your turn, {player}! Once you are sure no one else (including your teammate) "
-                    "can see your screen, please enter your PIN:\n")
-            self.pin_check(player, msg, wipe=False) # Enforce password
+            msg = (f"It is your turn, {player}! \n")
+            #self.pin_check(player, msg, wipe=False) # Enforce password
 
             # Record the indices of all playable cards
             selectable = []
@@ -219,21 +212,8 @@ class Round:
                     if (card.suiteID == 3 and self.spade_in_play):
                         selectable.append(i) # Once a spade has been played, they may always be played
 
-            # Show the user their hand
-            print("In Your Hand:")
-            self.print_hand(self.hands[player], selectable)
-
-            # Get the index of the card they will play
-            while (True):
-                result = handle_input("Please enter the number under the card you wish to play:")
-                try:
-                    result = int(result)
-                    if (result not in selectable):
-                        print("Error! You did not enter a valid number!")
-                    else:
-                        break
-                except:
-                    print("Error! You did not enter a valid number!")
+            result = player.getCard(selectable, table)
+#            result = random.choice(selectable)
 
             # Remove card from hand and put it on the table
             played_card = self.hands[player].pop(result)
@@ -246,11 +226,11 @@ class Round:
                 lead_suite = 3
                 self.spade_in_play = True
 
-            wipe_screen()
-            self.print_header()
-            self.print_table(table, ordering)
-            if (i < len(ordering) - 1):
-                handle_input("Card played! Please pass the computer to the next player! Press any key to continue....")
+            # wipe_screen()
+            # self.print_header()
+            # self.print_table(table, ordering)
+            # if (i < len(ordering) - 1):
+            #     handle_input("Card played! Please pass the computer to the next player! Press any key to continue....")
 
         # Determine the winner of the trick
         best_card = table[0]
@@ -272,9 +252,11 @@ class Round:
         # For each card in a hand...
         for i in range(13):
             lead_player, best_card = self.play_trick(ordering)
-            self.winnings[lead_player] += 1
-            msg = (f"Player {lead_player} won the hand with {best_card.order}{best_card.suite}! Press any key to continue...")
-            handle_input(msg, WIPE)
+            self.card_win_count[best_card.id] = self.card_win_count[best_card.id] + 1
+            self.winnings[lead_player.name] += 1
+            # msg = (f"Player {lead_player} won the hand with {best_card.order}{best_card.suite}! Press any key to continue...")
+            # handle_input(msg)
+            # print(msg)
 
             # Rotate order until the winning player is first
             while (lead_player != ordering[0]):
@@ -282,8 +264,8 @@ class Round:
 
     # Score the round, and print the results
     def score(self):
-        self.print_header()
-        print("The round is over! Check out your scores below:")
+        # self.print_header()
+        # print("The round is over! Check out your scores below:")
 
         # Evaluate each contract on the round's results
         scoreA, bagA = self.contracts[0].eval(self.winnings['A1'], self.winnings['A2'])
@@ -292,17 +274,39 @@ class Round:
         self.scores = [scoreA, scoreB]
         self.bags = [bagA, bagB]
 
-        print("Team A:")
-        print(f"\tContract:\t{self.contracts[0].to_string(self.winnings['A1'], self.winnings['A2'])}")
-        print(f"\tScore:\t\t{scoreA}")
-        print(f"\tBags:\t\t{bagA}")
-        print()
-        print("Team B:")
-        print(f"\tContract:\t{self.contracts[1].to_string(self.winnings['B1'], self.winnings['B2'])}")
-        print(f"\tScore:\t\t{scoreB}")
-        print(f"\tBags:\t\t{bagB}")
-        print()
-        handle_input("Press any key to end the round...", WIPE)
+        # print("Team A:")
+        # print(f"\tContract:\t{self.contracts[0].to_string(self.winnings['A1'], self.winnings['A2'])}")
+        # print(f"\tScore:\t\t{scoreA}")
+        # print(f"\tBags:\t\t{bagA}")
+        # print()
+        # print("Team B:")
+        # print(f"\tContract:\t{self.contracts[1].to_string(self.winnings['B1'], self.winnings['B2'])}")
+        # print(f"\tScore:\t\t{scoreB}")
+        # print(f"\tBags:\t\t{bagB}")
+        # print()
+        # print(card_win_count)
+        # cards = dict()
+        # values = dict()
+        # for card_id in range(52):
+        #     cards[card_id] = Card(card_id)
+        #     values[card_id] = card_win_count[card_id]
+        # for line in range(5):
+        #     row = [cards[c].viz()[line] for c in range(0,13)]
+        #     print(' '.join(row))
+        # print("  ", '     '.join([("%5s" % values[c]) for c in range(0,13)]))
+        # for line in range(5):
+        #     row = [cards[c].viz()[line] for c in range(13,26)]
+        #     print(' '.join(row))
+        # print("  ", '     '.join([("%5s" % values[c]) for c in range(13,26)]))
+        # for line in range(5):
+        #     row = [cards[c].viz()[line] for c in range(26,39)]
+        #     print(' '.join(row))
+        # print("  ", '     '.join([("%5s" % values[c]) for c in range(26,39)]))
+        # for line in range(5):
+        #     row = [cards[c].viz()[line] for c in range(39,52)]
+        #     print(' '.join(row))
+        # print("  ", '     '.join([("%5s" % values[c]) for c in range(39,52)]))
+        # handle_input("Press any key to end the round...")
 
     # Handle executing each stage of a round
     def run(self):

@@ -114,4 +114,5 @@ def handle_input(msg, type=(CONTINUE)):
 # Wipe terminal screen (hard erase)
 # TODO: This is CRAZY SLOW — is there a more efficient way without potentially revealing info written to the terminal previously?
 def wipe_screen():
-    os.system("reset")
+    pass
+#    os.system("reset")
